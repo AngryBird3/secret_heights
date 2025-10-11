@@ -21,6 +21,12 @@ public:
 
     /**
      * @brief Fuse GPS and two altimeter measurements to estimate true height AGL.
+     * @note Estimates true height above ground level (AGL) using a Kalman filter.
+     *       State vector: [height, vertical speed].
+     * @param fGpsAltitude GPS altitude (AMSL)
+     * @param fAltimeter1Altitude Altimeter 1 altitude (AGL)
+     * @param fAltimeter2Altitude Altimeter 2 altitude (AGL)
+     * @return Estimated true height above ground level (AGL)
      */
     double TrueHeightAboveGroundLevel(double fGpsAltitude,
                                       double fAltimeter1Altitude,
@@ -39,7 +45,7 @@ private:
 
     double fTerrainAMSL_{0.0};  ///< Terrain's AMSL (Above Mean Sea Level)
     double fOutlierThreshold_{9.0};
-    double fMinAltitude_{0.0};
+    double fMinAltitude_{-20.0};
     double fMaxAltitude_{15000.0};
     const double dT{0.01}; ///< Time step (sec) todo: make configurable
 };

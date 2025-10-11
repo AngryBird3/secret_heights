@@ -7,7 +7,8 @@
 int main()
 {
     // log1
-    HeightEstimate heightEstimator(100.0, 9.0, 10.0); // Terrain AMSL = 100m, Outlier Threshold = 9.0, Initial Height = 10m
+    // TerrainASML: GPS MEDIAN  - avg(two altimeters)
+    HeightEstimate heightEstimator(52.6, 3.5, 10.0);
     std::ifstream fin("../data/log1.csv");
     if (!fin.is_open())
     {
@@ -21,11 +22,16 @@ int main()
     std::cout << "[DHARA_DEBUG] Starting..\n";
     while (std::getline(fin, line))
     {
-        std::sscanf(line.c_str(), "%lld,%lf,%lf,%lf", &timestamp, &gps, &alt1, &alt2);
+        int parsed = std::sscanf(line.c_str(), "%lld,%lf,%lf,%lf", &timestamp, &gps, &alt1, &alt2);
+        if (parsed != 4)
+        {
+            std::cerr << "Error: failed to parse line: " << line << std::endl;
+            continue;
+        }
         if (timestamp % 100 == 0) {
             std::cout << "[DHARA_DEBUG] Processing timestamp: " << timestamp << "\n";
         }
         double heightAGL = heightEstimator.TrueHeightAboveGroundLevel(gps, alt1, alt2);
-        outFile << timestamp << "," << gps << "," << alt1 << "," << alt2 << "," << heightAGL << std::endl;
+        outFile << timestamp << "," << gps << "," << alt1 << "," << alt2 <<"," << heightAGL << std::endl;
     }
 }

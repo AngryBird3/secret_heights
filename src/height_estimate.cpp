@@ -15,11 +15,12 @@ HeightEstimate::HeightEstimate(double fTerrainAsml, double fOutlierThreshold, do
     /// 1. accept an initial vertical velocity estimate
     oStateVector_ << fInitialHeight, 0.0; // Initial height and vertical speed
     /// 2. Tune this initial variance based on log?
-    oStateCovariance_ << 1e6, 0.0,            // Height variance: ±1000 m
-                         0.0, 100.0;          // Velocity variance: ±10 m/s
+    oStateCovariance_ << 25.0, 0.0,   // height std ≈ 5 m
+                         0.0,  4.0;   // vel   std ≈ 2 m/s
+
 
     /// 3. Calibrate Q/R based on sensor specs, log, make it more configurable via yaml
-    oProcessNoiseCovariance_ << 0.1, 0.0,
+    oProcessNoiseCovariance_ << 0.05, 0.0,
                                 0.0, 0.1; // Initial process noise covariance
 
     /// 3. Make this configurable
@@ -32,14 +33,14 @@ HeightEstimate::HeightEstimate(double fTerrainAsml, double fOutlierThreshold, do
         2.25   // Altimeter 2 variance = (1.5 m)^2
     };
 
-    oMeasurementNoiseVariance_ = { 4.0, 1.0, 2.25 };
-
     oMeasurementMatrix_  << 1.0, 0.0; // We measure height directly
 }
 
 bool HeightEstimate::isValidMeasurement(double fMeasurement)
 {
-    return (fMeasurement > fMinAltitude_) && (fMeasurement < fMaxAltitude_);
+    if (!std::isfinite(fMeasurement)) return false;
+    return (fMeasurement >= fMinAltitude_) && (fMeasurement <= fMaxAltitude_); // >= and <=
+
 }
 
 double HeightEstimate::TrueHeightAboveGroundLevel(double fGpsAltitude, double fAltimeter1Altitude, double fAltimeter2Altitude) {
@@ -53,12 +54,14 @@ double HeightEstimate::TrueHeightAboveGroundLevel(double fGpsAltitude, double fA
                                 fAltimeter1Altitude,
                                 fAltimeter2Altitude};
 
+    static int debug_count = 0;
+
     // Measurement Update Step
     for (auto iIndex = 0; iIndex < sensorReadings.size(); ++iIndex) {
         double measurement = sensorReadings[iIndex];
 
         if (!isValidMeasurement(measurement)) {
-            std::cout << "Invalid measurement: " << measurement << std::endl;
+            std::cout << "[Sensor " << iIndex << "] Invalid measurement: " << measurement << std::endl;
             continue; // Skip invalid measurement for update step
         }
 
@@ -69,9 +72,15 @@ double HeightEstimate::TrueHeightAboveGroundLevel(double fGpsAltitude, double fA
         // Residual covariance
         double s = (oMeasurementMatrix_ * oStateCovariance_ * oMeasurementMatrix_.transpose())(0, 0)
                      + oMeasurementNoiseVariance_[iIndex];
+        if (s < 1e-10)
+        { // Arbitrary small threshold
+            std::cout << "[Sensor " << iIndex << "] Residual covariance too small: " << s << std::endl;
+            continue;
+        }
         // Check for outlier
         // if |yₜ| > threshold * sqrt(Sₜ)
         if (std::abs(y) > fOutlierThreshold_ * std::sqrt(s)) {
+            std::cout << "[Sensor " << iIndex << "] Outlier detected: residual = " << y << std::endl;
             continue; // Skip outlier measurements
         }
 
@@ -82,8 +91,24 @@ double HeightEstimate::TrueHeightAboveGroundLevel(double fGpsAltitude, double fA
         // x_t = x_t + K_t * y_
         oStateVector_ = oStateVector_ + oKalmanGain * y;
         // P_t = (I - K_t * H) * P_t
-        oStateCovariance_ = (Eigen::Matrix2d::Identity() - oKalmanGain * oMeasurementMatrix_) * oStateCovariance_;
+        // oStateCovariance_ = (Eigen::Matrix2d::Identity() - oKalmanGain * oMeasurementMatrix_) * oStateCovariance_;
+        // Joseph form for numerical stability
+        Eigen::Matrix2d I = Eigen::Matrix2d::Identity();
+        Eigen::Matrix2d KH = oKalmanGain * oMeasurementMatrix_;
+        oStateCovariance_ = (I - KH) * oStateCovariance_ * (I - KH).transpose() +
+                            oKalmanGain * oMeasurementNoiseVariance_[iIndex] * oKalmanGain.transpose();
+
+        if (debug_count++ < 100) {
+            std::cout << "[UPDATE s=" << iIndex << "] z=" << measurement
+                      << " y=" << y
+                      << " S=" << s
+                      << " K=" << oKalmanGain.transpose()
+                      << " x=" << oStateVector_.transpose()
+                      << std::endl;
+        }
+
     }
+
     // Return height above ground level (AGL)
     return oStateVector_(0, 0);
 }
