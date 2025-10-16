@@ -26,20 +26,24 @@ def plot_log(df: pd.DataFrame, title: str, smoothed=False):
         print(f"{col}: mean={df[col].mean():.2f}, median={df[col].median():.2f}, std={df[col].std():.2f}")
     print()
 
-def main():
-    # # Load logs
-    # log1 = pd.read_csv("log1.csv")
-    # log2 = pd.read_csv("log2.csv")
-    #
-    # # Plot each with appropriate title
-    # plot_log(log1, "Log 1 — Faulty Altimeter Behavior")
-    # plot_log(log2, "Log 2 — normal Altimeter Behavior")
-    #
-    log1_smoothed = pd.read_csv("log1_smoothed.csv")
+def plot_smoothed_log(filename: str = "log1_smoothed.csv"):
+    """Plot GPS and altimeter altitudes from a log DataFrame with smoothing."""
+    log1_smoothed = pd.read_csv(filename)
     plot_log(log1_smoothed, "Estimated", True)
 
+def main():
+    # # Load logs
+    #log1 = pd.read_csv("log1.csv")
+    log2 = pd.read_csv("log2.csv")
+    #
+    # # Plot each with appropriate title
+    #plot_log(log1, "Log 1 — Faulty Altimeter Behavior")
+    plot_log(log2, "Log 2 — normal Altimeter Behavior")
+    #
+
 if __name__ == "__main__":
-    main()
+    #main()
+    plot_smoothed_log("log2_smoothed.csv")
 
 
 
